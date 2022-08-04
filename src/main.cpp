@@ -4,7 +4,7 @@
 #define PIN_V_OUTPUT A1
 #define PIN_I_OUTPUT A2
 
-#define PIN_V_INPUT A3
+#define PIN_V_INPUT A2
 #define PIN_I_INPUT A4
 
 #define PIN_T_INPUT A5
@@ -13,17 +13,21 @@
 
 //#define PRINT // definition pour allow les print comment out to dont output to the com port
 
+#define PRINTTEST
 //function prototype
 float calculTemp(int16_t sensorValue);
 void TempCheck(void);
 void EficiencyCheck(uint16_t Vin, uint16_t Iin, uint16_t Vout, uint16_t Iout);
 //Define Variables we'll be connecting to
-double SetpointV = map(1.6 ,0,5,0,1024 ), InputV, OutputV; // 511 = 1023/2 car a 12v on a 2.5V soit Vref/2
-
+double SetpointV = map(1.6 ,0,5,0,1023 ), InputV, OutputV; // 511 = 1023/2 car a 12v on a 2.5V soit Vref/2
+double Vin, Vout = map(1.6 ,0,5,0,1023 ), Vd = map(1 ,0,5,0,1023 ) ;
+float VinV;
+float Duty;
+float DutyMAX = 0.59;
 //double SetpointI, InputI, OutputI; //TODO setpoint current a determiner
 
 //Specify the links and initial tuning parameters
-double VKp=0.7, VKi=0.03 , VKd=0; // TODO connst a determiner
+double VKp=0.2, VKi=0.01 , VKd=0.00009; // TODO connst a determiner
 //double IKp=2, IKi=5, IKd=1;
 PID VPID(&InputV, &OutputV, &SetpointV, VKp, VKi, VKd, DIRECT);
 //PID IPID(&InputI, &OutputI, &SetpointI, IKp, IKi, IKd, DIRECT);
@@ -43,7 +47,7 @@ void setup()
   #endif
 
   //turn the PID on
-  VPID.SetOutputLimits(0, 100); // set the max pwm at 72% so not to burn some mosfet again!
+  VPID.SetOutputLimits(0, 70); // set the max pwm at 72% so not to burn some mosfet again!
   VPID.SetMode(AUTOMATIC);
   //IPID.SetMode(AUTOMATIC);
   //OutputV = 51;
@@ -54,13 +58,44 @@ void loop()
 {
   //TempCheck();
   // Reg Tension
-  InputV = analogRead(PIN_V_INPUT);
+  Vin = analogRead(PIN_V_INPUT);
+  if (Vin > 20)
+  {
+    Serial.print("Vin: ");
+    Serial.println(Vin);
+    VinV = (Vin*5)/1023;
+    Serial.print("Vin: ");
+    Serial.println(VinV);
+    VinV = VinV/0.1035;
+
+    Duty = ((13)/(VinV + 13))/2;
+    if (Duty > DutyMAX)
+    {
+      Duty = DutyMAX;
+    }
+  }
+  else
+  {
+    Duty = 0;
+  }
+  #ifdef PRINTTEST
+  Serial.print("Vin: ");
+  Serial.println(VinV);
+  Serial.print("Duty: ");
+  Serial.println(Duty);
+  
+
+  #endif
+  
+  analogWrite(PIN_MOSFET, (Duty*255));
+
+  //InputV = analogRead(PIN_V_OUTPUT);
   #ifdef PRINT
   Serial.print("\tV: ");
   Serial.println(InputV);
   #endif
-  VPID.Compute();
-  analogWrite(PIN_MOSFET, OutputV);
+  //VPID.Compute();
+  //analogWrite(PIN_MOSFET, OutputV);
   #ifdef PRINT
   Serial.print("\tPWM: ");
   Serial.println(OutputV);
